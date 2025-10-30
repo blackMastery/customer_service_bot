@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # API Service
+  api:
+    build: .
+    container_name: chatbot-api
+    ports:
+      - "8000:8000"
+    environment:
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Streamlit UI Service
+  streamlit:
+    build: .
+    container_name: chatbot-ui
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    command: streamlit run streamlit_app.py --server.port 8501 --server.address 0.0.0.0
+    restart: unless-stopped
+    depends_on:
+      - api
+
+  # Optional: Redis for session management and rate limiting
+  # Uncomment if you need Redis
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: chatbot-redis
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis-data:/data
+  #   restart: unless-stopped
+
+volumes:
+  # redis-data:
+  data:
+  logs:
