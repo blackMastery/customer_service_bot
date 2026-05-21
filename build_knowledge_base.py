@@ -71,7 +71,7 @@ class KnowledgeBaseBuilder:
                         logger.info(f"Loaded {len(docs)} documents from {file_path.name}")
                         
                     except Exception as e:
-                        logger.error(f"Error loading {file_path}: {e}")
+                        logger.error("Error loading {}: {}", file_path, e)
         
         return documents
     

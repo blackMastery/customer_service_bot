@@ -29,7 +29,7 @@ class CustomerServiceBot:
             self.vector_store = self._load_vector_store()
             logger.info("Vector store loaded successfully")
         except Exception as e:
-            logger.warning(f"Vector store not loaded: {e}")
+            logger.warning("Vector store not loaded: {}", e)
     
     def _initialize_llm(self):
         """Initialize the language model based on configuration."""
@@ -51,7 +51,7 @@ class CustomerServiceBot:
             else:
                 raise ValueError(f"Unsupported LLM provider: {self.settings.llm_provider}")
         except Exception as e:
-            logger.error(f"Failed to initialize LLM: {e}")
+            logger.error("Failed to initialize LLM: {}", e)
             raise
     
     def _initialize_embeddings(self):
@@ -62,7 +62,7 @@ class CustomerServiceBot:
                 api_key=self.settings.openai_api_key
             )
         except Exception as e:
-            logger.error(f"Failed to initialize embeddings: {e}")
+            logger.error("Failed to initialize embeddings: {}", e)
             raise
     
     def _load_vector_store(self) -> Optional[Chroma]:
@@ -73,11 +73,15 @@ class CustomerServiceBot:
                 embedding_function=self.embeddings
             )
         except Exception as e:
-            logger.warning(f"Could not load vector store: {e}")
+            logger.warning("Could not load vector store: {}", e)
             return None
     
-    def _get_custom_prompt(self) -> PromptTemplate:
-        """Create a custom prompt template for customer service."""
+    def _get_combine_docs_prompt(self) -> PromptTemplate:
+        """QA prompt for the stuff chain: only context/question/chat_history are runtime inputs.
+
+        Company, hours, and support email are bound via partial_variables so they are not
+        passed through chain memory (which requires a single user input key: question).
+        """
         template = """You are a helpful and professional customer service representative for {company_name}.
 
 Your responsibilities:
@@ -87,23 +91,27 @@ Your responsibilities:
 - Keep responses concise but comprehensive
 - Always maintain a positive and solution-oriented attitude
 
-Business Hours: {business_hours}
-Support Email: {support_email}
+Official business hours (use when relevant): {business_hours}
+Support email (use when relevant): {support_email}
 
 Context from knowledge base:
 {context}
 
-Conversation History:
+Conversation history (condensed for this turn):
 {chat_history}
 
 Customer: {question}
 
 Customer Service Rep:"""
-        
+
         return PromptTemplate(
-            input_variables=["company_name", "business_hours", "support_email", 
-                           "context", "chat_history", "question"],
-            template=template
+            template=template,
+            input_variables=["context", "chat_history", "question"],
+            partial_variables={
+                "company_name": self.settings.company_name,
+                "business_hours": self.settings.business_hours,
+                "support_email": self.settings.support_email,
+            },
         )
     
     def _get_or_create_memory(self, session_id: str) -> ConversationBufferMemory:
@@ -123,13 +131,16 @@ Customer Service Rep:"""
             memory = self._get_or_create_memory(session_id)
             
             if self.vector_store:
-                # With knowledge base
+                # With knowledge base — business fields on the QA prompt only (partial_variables)
                 chain = ConversationalRetrievalChain.from_llm(
                     llm=self.llm,
                     retriever=self.vector_store.as_retriever(search_kwargs={"k": 3}),
                     memory=memory,
                     return_source_documents=True,
-                    verbose=False
+                    verbose=False,
+                    combine_docs_chain_kwargs={
+                        "prompt": self._get_combine_docs_prompt(),
+                    },
                 )
             else:
                 # Without knowledge base - simple conversation
@@ -171,13 +182,8 @@ Customer Service Rep:"""
             # Prepare input with business context
             if self.vector_store:
                 result = await asyncio.to_thread(
-                    chain,
-                    {
-                        "question": message,
-                        "company_name": self.settings.company_name,
-                        "business_hours": self.settings.business_hours,
-                        "support_email": self.settings.support_email
-                    }
+                    chain.invoke,
+                    {"question": message},
                 )
                 
                 response = result["answer"]
@@ -198,7 +204,7 @@ Customer Service Rep:"""
             return response, source_info
             
         except Exception as e:
-            logger.error(f"Error processing chat message: {e}", exc_info=True)
+            logger.opt(exception=True).error("Error processing chat message: {}", e)
             return self._get_error_response(), None
     
     def _get_error_response(self) -> str:
@@ -236,7 +242,7 @@ Customer Service Rep:"""
                 del self.conversation_chains[session_id]
             return True
         except Exception as e:
-            logger.error(f"Error clearing conversation: {e}")
+            logger.error("Error clearing conversation: {}", e)
             return False
     
     def cleanup_old_sessions(self, max_age_hours: int = 24):

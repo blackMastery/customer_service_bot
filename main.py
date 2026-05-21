@@ -69,7 +69,7 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -113,7 +113,7 @@ async def verify_api_key(x_api_key: Optional[str] = Header(None)):
     if not settings.require_api_key:
         return True
     
-    if not x_api_key or x_api_key not in settings.valid_api_keys:
+    if not x_api_key or x_api_key not in settings.valid_api_keys_list:
         raise HTTPException(
             status_code=401,
             detail="Invalid or missing API key"
@@ -185,7 +185,7 @@ async def chat(
         )
         
     except Exception as e:
-        logger.error(f"Error in chat endpoint: {e}", exc_info=True)
+        logger.opt(exception=True).error("Error in chat endpoint: {}", e)
         raise HTTPException(
             status_code=500,
             detail="Failed to process your message. Please try again."
@@ -210,7 +210,7 @@ async def get_conversation(
         )
         
     except Exception as e:
-        logger.error(f"Error retrieving conversation: {e}")
+        logger.error("Error retrieving conversation: {}", e)
         raise HTTPException(
             status_code=500,
             detail="Failed to retrieve conversation history"
@@ -236,7 +236,7 @@ async def clear_conversation(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error clearing conversation: {e}")
+        logger.error("Error clearing conversation: {}", e)
         raise HTTPException(
             status_code=500,
             detail="Failed to clear conversation"
