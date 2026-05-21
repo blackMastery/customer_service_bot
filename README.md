@@ -57,6 +57,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 3. **Install dependencies:**
 ```bash
 pip install -r requirements.txt
+# For tests: pip install -r requirements-dev.txt
 ```
 
 4. **Configure environment:**
@@ -351,6 +352,10 @@ tail -f logs/app.log
 pip install -r requirements.txt
 ```
 
+**Issue: Streamlit Cloud dependency build fails (`tiktoken`, `pydantic-core`, `Pillow`)**
+- Use Python **3.12** in the app's Advanced settings (see `runtime.txt`).
+- Pull latest `requirements.txt` (no `sentence-transformers`, updated LangChain and `tiktoken>=0.8`).
+
 **Issue: "API key not found"**
 - Ensure `.env` file exists and contains your API key
 - Check that environment variables are loaded
@@ -369,6 +374,15 @@ python build_knowledge_base.py build
 - Reduce `MAX_TOKENS` in configuration
 - Implement token counting and budgets
 - Cache common responses
+
+### Streamlit Community Cloud
+
+1. Set **Main file** to `streamlit_app.py`.
+2. In **Advanced settings**, choose **Python 3.12** (matches `runtime.txt`). If the app was already deployed on 3.14, delete and redeploy or change the runtime there.
+3. Add secrets in the app settings (same keys as `.env`, e.g. `OPENAI_API_KEY`).
+4. Commit a built vector store under `data/vectorstore/` or rebuild after deploy; Cloud has no persistent disk between reboots unless you store the index in the repo.
+
+Dependency installs avoid `sentence-transformers` / PyTorch (embeddings use OpenAI). Use `requirements-dev.txt` only for local pytest runs.
 
 ## Performance Optimization
 

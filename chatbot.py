@@ -2,12 +2,12 @@ import asyncio
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 from langchain.chains import ConversationalRetrievalChain
-from langchain.memory import ConversationBufferMemory, ConversationSummaryMemory
+from langchain.memory import ConversationBufferMemory
 from langchain_community.vectorstores import Chroma
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_anthropic import ChatAnthropic
 from langchain.prompts import PromptTemplate
-from langchain.schema import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage
 from loguru import logger
 
 from config import get_settings
@@ -36,10 +36,10 @@ class CustomerServiceBot:
         try:
             if self.settings.llm_provider == "openai":
                 return ChatOpenAI(
-                    model_name=self.settings.model_name,
+                    model=self.settings.model_name,
                     temperature=self.settings.temperature,
                     max_tokens=self.settings.max_tokens,
-                    api_key=self.settings.openai_api_key
+                    api_key=self.settings.openai_api_key,
                 )
             elif self.settings.llm_provider == "anthropic":
                 return ChatAnthropic(
